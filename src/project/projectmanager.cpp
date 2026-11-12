@@ -1233,6 +1233,7 @@ void ProjectManager::doOpenFileHeadless(const QUrl &url)
 
     auto timeline = m_project->getTimeline(activeUuid);
     testSetActiveTimeline(timeline);
+    m_project->loading = false;
 }
 
 bool ProjectManager::saveHeadless(const QString &outputFileName)
