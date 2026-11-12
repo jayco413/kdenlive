@@ -1066,7 +1066,9 @@ void KdenliveDoc::updateWorkFilesBeforeSave(const QString &newUrl, bool onRender
             qWarning() << "Cannot write to cache folder: " << sequenceFolder.absolutePath();
         }
     }
-    pCore->bin()->moveTimeWarpToFolder(sequenceFolder, true);
+    if (pCore->bin()) {
+        pCore->bin()->moveTimeWarpToFolder(sequenceFolder, true);
+    }
 }
 
 void KdenliveDoc::updateWorkFilesAfterSave()
@@ -1082,7 +1084,9 @@ void KdenliveDoc::updateWorkFilesAfterSave()
 
     bool ok;
     QDir sequenceFolder = getCacheDir(CacheTmpWorkFiles, &ok);
-    pCore->bin()->moveTimeWarpToFolder(sequenceFolder, false);
+    if (pCore->bin()) {
+        pCore->bin()->moveTimeWarpToFolder(sequenceFolder, false);
+    }
 }
 
 void KdenliveDoc::slotModified()
