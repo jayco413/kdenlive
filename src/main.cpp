@@ -49,6 +49,8 @@ SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
 #include <KLocalizedString>
 #include <QApplication>
 #include <QCommandLineOption>
+#include <QThread>
+#include <QElapsedTimer>
 #include <QCommandLineParser>
 #include <QDir>
 #include <QIcon>
@@ -368,6 +370,16 @@ int main(int argc, char *argv[])
     QCommandLineOption saveDebugOption(QStringLiteral("setup-report"), i18n("Save a json report about components in the given path."), QStringLiteral("reportFile"));
     parser.addOption(saveDebugOption);
 
+    // Crimson Moon fork: headless validation / normalisation of generated projects
+    QCommandLineOption resaveOption(QStringLiteral("resave"),
+                                    i18n("Open the project headless (running Kdenlive's document validator and upgrades), save it to the given file and exit."),
+                                    QStringLiteral("output.kdenlive"));
+    parser.addOption(resaveOption);
+    QCommandLineOption checkOption(QStringLiteral("check"), i18n("Open the project headless, print a validation report and exit (non-zero exit code on problems)."));
+    parser.addOption(checkOption);
+    QCommandLineOption verboseReportOption(QStringLiteral("report-verbose"), i18n("With --check or --resave, list every bin clip."));
+    parser.addOption(verboseReportOption);
+
     parser.addPositionalArgument(QStringLiteral("file"), i18n("Kdenlive document to open."));
     parser.addPositionalArgument(QStringLiteral("rendering"), i18n("Output file for rendered video."));
 
@@ -446,6 +458,40 @@ int main(int argc, char *argv[])
                 }
             }
         }
+    }
+
+    if (parser.isSet(resaveOption) || parser.isSet(checkOption)) {
+        if (app.url.isEmpty() || !QFileInfo::exists(app.url.toLocalFile())) {
+            qCritical() << "You need to give an existing project file to --check / --resave.";
+            return EXIT_FAILURE;
+        }
+        if (!Core::build(packageType, true)) {
+            return EXIT_FAILURE;
+        }
+        pCore->initHeadless(app.url);
+        // Let the queued load run, then wait until all clip loading tasks are done
+        QElapsedTimer waitTimer;
+        waitTimer.start();
+        int idleRounds = 0;
+        while (waitTimer.elapsed() < 600000) {
+            app.processEvents(QEventLoop::AllEvents, 50);
+            const bool busy = pCore->currentDoc() == nullptr || pCore->currentDoc()->loading || pCore->taskManager.pendingTaskCount() > 0;
+            idleRounds = busy ? 0 : idleRounds + 1;
+            if (idleRounds > 20) {
+                break;
+            }
+            QThread::msleep(20);
+        }
+        bool ok = pCore->projectManager()->headlessReport(parser.isSet(verboseReportOption));
+        if (parser.isSet(resaveOption)) {
+            const QString out = QFileInfo(parser.value(resaveOption)).absoluteFilePath();
+            ok = pCore->projectManager()->saveHeadless(out) && ok;
+        }
+        pCore->projectManager()->closeCurrentDocument(false, false);
+        app.processEvents();
+        Core::clean();
+        app.processEvents();
+        return ok ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (parser.isSet(renderOption)) {

@@ -49,6 +49,9 @@ public:
      *  @param type The type of job that you want to query
      */
     bool hasPendingJob(const ObjectId &owner, AbstractTask::JOBTYPE type = AbstractTask::NOJOBTYPE) const;
+
+    /** @brief Number of tasks currently queued or running (used by headless tools to wait for clip loading) */
+    int pendingTaskCount() const;
     
     TaskManagerStatus jobStatus(const ObjectId &owner) const;
 

@@ -33,6 +33,16 @@ bool TaskManager::isBlocked() const
     return m_blockUpdates;
 }
 
+int TaskManager::pendingTaskCount() const
+{
+    QReadLocker lk(&m_tasksListLock);
+    int count = 0;
+    for (const auto &t : m_taskList) {
+        count += int(t.second.size());
+    }
+    return count;
+}
+
 void TaskManager::updateConcurrency()
 {
     m_transcodePool.setMaxThreadCount(KdenliveSettings::proxythreads());

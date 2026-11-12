@@ -1235,6 +1235,66 @@ void ProjectManager::doOpenFileHeadless(const QUrl &url)
     testSetActiveTimeline(timeline);
 }
 
+bool ProjectManager::saveHeadless(const QString &outputFileName)
+{
+    if (m_project == nullptr || m_activeTimelineModel == nullptr) {
+        qCritical() << "saveHeadless: no project loaded";
+        return false;
+    }
+    pCore->projectItemModel()->saveDocumentProperties(m_project->documentProperties(), m_project->metadata());
+    const QString uuid = m_activeTimelineModel->uuid().toString();
+    pCore->projectItemModel()->saveProperty(QStringLiteral("kdenlive:docproperties.opensequences"), uuid);
+    pCore->projectItemModel()->saveProperty(QStringLiteral("kdenlive:docproperties.activetimeline"), uuid);
+    checkProjectIntegrity();
+    const QString saveFolder = QFileInfo(outputFileName).absolutePath();
+    m_project->updateWorkFilesBeforeSave(outputFileName);
+    const QString scene = projectSceneList(saveFolder).first;
+    m_project->updateWorkFilesAfterSave();
+    if (!m_project->saveSceneList(outputFileName, scene, true)) {
+        qCritical() << "saveHeadless: could not write" << outputFileName;
+        return false;
+    }
+    qInfo().noquote() << "Saved project:" << outputFileName;
+    return true;
+}
+
+bool ProjectManager::headlessReport(bool verbose)
+{
+    if (m_project == nullptr || m_activeTimelineModel == nullptr) {
+        qCritical() << "Project could not be loaded";
+        return false;
+    }
+    bool ok = true;
+    auto timeline = m_activeTimelineModel;
+    const double fps = pCore->getCurrentFps();
+    qInfo().noquote() << QStringLiteral("Profile: %1 (%2 fps)").arg(pCore->getCurrentProfile()->description()).arg(fps);
+    qInfo().noquote() << QStringLiteral("Timeline: %1 tracks, %2 clips, duration %3 frames (%4 s)")
+                             .arg(timeline->getTracksCount())
+                             .arg(timeline->getClipsCount())
+                             .arg(timeline->duration())
+                             .arg(timeline->duration() / fps, 0, 'f', 2);
+    const std::vector<QString> clipIds = pCore->projectItemModel()->getAllClipIds();
+    int bad = 0;
+    for (const QString &id : clipIds) {
+        auto clip = pCore->projectItemModel()->getClipByBinID(id);
+        if (!clip) {
+            continue;
+        }
+        if (!clip->isValid() || clip->clipType() == ClipType::Unknown) {
+            ok = false;
+            bad++;
+            qWarning().noquote() << QStringLiteral("INVALID CLIP %1: %2").arg(id, clip->url());
+        } else if (verbose) {
+            qInfo().noquote() << QStringLiteral("clip %1: %2").arg(id, clip->url());
+        }
+    }
+    qInfo().noquote() << QStringLiteral("Bin: %1 clips, %2 invalid").arg(int(clipIds.size())).arg(bad);
+    for (const QString &w : std::as_const(m_mltWarnings)) {
+        qWarning().noquote() << "MLT:" << w;
+    }
+    return ok;
+}
+
 void ProjectManager::slotRevert()
 {
     if (m_project->isModified() &&

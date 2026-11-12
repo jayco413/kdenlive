@@ -195,6 +195,10 @@ public Q_SLOTS:
      * @param saveACopy Default is false. If true, the file will be saved but isn’t opened afterwards. Besides no autosave version will be created
      * @return Whether we had success. */
     bool saveFileAs(const QString &outputFileName, bool saveOverExistingFile = true, bool saveACopy = false);
+    /** @brief Save the current project without any GUI (used by the --resave command line option) */
+    bool saveHeadless(const QString &outputFileName);
+    /** @brief Print a validation report of the loaded project (used by --check and --resave). Returns false if problems were found */
+    bool headlessReport(bool verbose);
 
     /** @brief Close currently opened document. Returns false if something went wrong (cannot save modifications, ...). */
     bool closeCurrentDocument(bool saveChanges = true, bool quit = false);
